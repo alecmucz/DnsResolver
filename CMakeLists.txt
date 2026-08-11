@@ -6,9 +6,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # SOCKET LIBRARY
-add_library(socket INTERFACE)
+add_library(socket STATIC
+        src/socket/IpAddress.cpp)
 target_include_directories(socket
-                    INTERFACE
+                    PUBLIC
                     ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
