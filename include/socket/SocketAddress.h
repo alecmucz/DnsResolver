@@ -6,13 +6,18 @@
 class SocketAddress {
 private:
     IpAddress address;
-    std::uint16_t port{0};
+    std::uint16_t port_{0};
 
 public:
     SocketAddress() = delete;
     explicit SocketAddress(
         const IpAddress &address,
         const std::uint16_t port
-        ) : address(address), port(port) {}
+        ) : address{address}, port_{port} {}
 
+    [[nodiscard]]
+    const IpAddress& ip_address() const noexcept;
+
+    [[nodiscard]]
+    std::uint16_t port() const noexcept;
 };
