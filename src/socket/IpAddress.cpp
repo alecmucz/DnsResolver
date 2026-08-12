@@ -2,6 +2,14 @@
 #include <string>
 #include "socket/IpAddress.h"
 
+const in_addr& IpAddress::ipv4() const noexcept {
+    return std::get<in_addr>(address);
+}
+
+const in6_addr& IpAddress::ipv6() const noexcept {
+    return std::get<in6_addr>(address);
+}
+
 sa_family_t IpAddress::family() const noexcept {
     return std::holds_alternative<in_addr>(address)
             ? AF_INET : AF_INET6;
@@ -32,3 +40,4 @@ std::string IpAddress::to_string() const {
 
     return std::string{buffer};
 }
+

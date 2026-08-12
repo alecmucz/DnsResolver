@@ -8,7 +8,9 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 # SOCKET LIBRARY
 add_library(socket STATIC
         src/socket/IpAddress.cpp
-        src/socket/SocketAddress.cpp)
+        src/socket/SocketAddress.cpp
+        include/socket/DatagramSocket.h
+        src/socket/DatagramSocket.cpp)
 target_include_directories(socket
                     PUBLIC
                     ${CMAKE_CURRENT_SOURCE_DIR}/include)

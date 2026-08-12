@@ -20,4 +20,11 @@ public:
 
     [[nodiscard]]
     std::uint16_t port() const noexcept;
+
+    [[nodiscard]]
+    sockaddr_storage to_sockaddr() const noexcept;
+
+    [[nodiscard]]
+    socklen_t sockaddr_length() const noexcept;
 };
+
