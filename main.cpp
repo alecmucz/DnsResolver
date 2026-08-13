@@ -1,21 +1,61 @@
 #include <iostream>
+#include <print>
+#include <optional>
+#include <string_view>
+#include <cstddef>
+
 #include <arpa/inet.h>
 
-#include "include/socket/IpAddress.h"
+#include "socket/IpAddress.h"
 #include "socket/DatagramSocket.h"
 #include "socket/SocketAddress.h"
 
 int main() {
     auto ip = IpAddress::from_string("127.0.0.1");
 
-    SocketAddress addr{*ip, 9000};
-    DatagramSocket socket{AF_INET};
+    SocketAddress address{*ip, 9000};
+    DatagramSocket server{AF_INET};
 
-    std::string message{"UDP Message"};
+    server.bind(address);
 
-    std::span<const char> data{message.data(), message.size()};
+    std::println(
+        "Listening on {}:{}",
+        address.ip_address().to_string(),
+        address.port()
+    );
 
-    socket.send(std::as_bytes(data), addr);
+    while (true) {
+        std::byte buffer[1024];
+        std::optional<SocketAddress> sender{};
 
-    return 0;
+        const auto bytes_received = server.recv(buffer, sender);
+
+        if (bytes_received < 0) {
+            std::println("recv failed");
+            continue;
+        }
+
+        const auto size =
+            static_cast<std::size_t>(bytes_received);
+
+        const std::string_view data{
+            reinterpret_cast<const char*>(buffer),
+            size
+        };
+
+        std::println(
+            "Received {} bytes from {}:{} -> {}",
+            bytes_received,
+            sender->ip_address().to_string(),
+            sender->port(),
+            data
+        );
+
+        server.send(
+            std::span<const std::byte>{buffer, size},
+            *sender
+        );
+
+
+    }
 }

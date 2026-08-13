@@ -30,6 +30,24 @@ sockaddr_storage SocketAddress::to_sockaddr() const noexcept {
     return storage;
 }
 
+SocketAddress SocketAddress::from_sockaddr(const sockaddr_storage &storage) noexcept {
+
+    if (storage.ss_family == AF_INET) {
+        const auto *addr = reinterpret_cast<const sockaddr_in*>(&storage);
+        return SocketAddress{
+            IpAddress(addr->sin_addr),
+            ntohs(addr->sin_port)
+        };
+    } else if (storage.ss_family == AF_INET6) {
+        const auto *addr = reinterpret_cast<const sockaddr_in6*>(&storage);
+        return SocketAddress{
+            IpAddress(addr->sin6_addr),
+            ntohs(addr->sin6_port)
+        };
+    }
+    std::unreachable();
+}
+
 socklen_t SocketAddress::sockaddr_length() const noexcept {
     if (address.family() == AF_INET) {
         return sizeof(sockaddr_in);

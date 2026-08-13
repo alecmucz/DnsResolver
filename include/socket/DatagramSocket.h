@@ -1,6 +1,7 @@
 #pragma once
 #include <sys/socket.h>
 #include <span>
+#include <optional>
 
 #include "FileDescriptor.h"
 #include "SocketAddress.h"
@@ -19,5 +20,8 @@ public:
 
     void send(std::span<const std::byte> data,
               const SocketAddress &address) const;
+
+    ssize_t recv(std::span<std::byte> buffer,
+                 std::optional<SocketAddress> &sender) const;
 
 };

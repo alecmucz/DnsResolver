@@ -25,6 +25,9 @@ public:
     sockaddr_storage to_sockaddr() const noexcept;
 
     [[nodiscard]]
+    static SocketAddress from_sockaddr(const sockaddr_storage &storage) noexcept;
+
+    [[nodiscard]]
     socklen_t sockaddr_length() const noexcept;
 };
 
