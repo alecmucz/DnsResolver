@@ -9,9 +9,9 @@ void DatagramSocket::bind(const SocketAddress &address) {
         );
 }
 
-void DatagramSocket::send(std::span<const std::byte> data, const SocketAddress &address) const {
+ssize_t DatagramSocket::send(std::span<const std::byte> data, const SocketAddress &address) const {
     const auto storage = address.to_sockaddr();
-    ::sendto(
+    return ::sendto(
         fd.value(),
         data.data(),
         data.size(),

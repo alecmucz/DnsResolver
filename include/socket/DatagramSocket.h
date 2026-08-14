@@ -18,7 +18,7 @@ public:
 
     void bind(const SocketAddress &address) ;
 
-    void send(std::span<const std::byte> data,
+    ssize_t send(std::span<const std::byte> data,
               const SocketAddress &address) const;
 
     ssize_t recv(std::span<std::byte> buffer,

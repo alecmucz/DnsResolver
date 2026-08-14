@@ -13,13 +13,18 @@
 int main() {
     auto ip = IpAddress::from_string("127.0.0.1");
 
+    if (!ip) {
+        std::println("Invalid IP address");
+        return 1;
+    }
+
     SocketAddress address{*ip, 9000};
     DatagramSocket server{AF_INET};
 
     server.bind(address);
 
     std::println(
-        "Listening on {}:{}",
+        "Server Listening on {}:{}\n\n",
         address.ip_address().to_string(),
         address.port()
     );
@@ -31,31 +36,46 @@ int main() {
         const auto bytes_received = server.recv(buffer, sender);
 
         if (bytes_received < 0) {
-            std::println("recv failed");
+            std::println("recv() failed");
             continue;
         }
 
-        const auto size =
-            static_cast<std::size_t>(bytes_received);
+        if (!sender) {
+            std::println("recv() returned without sender");
+            continue;
+        }
 
         const std::string_view data{
             reinterpret_cast<const char*>(buffer),
-            size
+            static_cast<std::size_t>(bytes_received)
         };
 
         std::println(
-            "Received {} bytes from {}:{} -> {}",
+            "Received {} bytes from {}:{} \nMessage: {}",
             bytes_received,
             sender->ip_address().to_string(),
             sender->port(),
             data
         );
 
-        server.send(
-            std::span<const std::byte>{buffer, size},
-            *sender
-        );
+        std::print("Server> ");
+        std::string reply;
 
+        std::getline(std::cin, reply);
 
+        if (reply.empty()) {
+            std::println("Empty reply");
+            continue;
+        }
+
+        const auto reply_data = std::as_bytes(std::span{reply});
+
+        const auto sent = server.send(reply_data, *sender);
+
+        if (sent < 0) {
+            std::println("send() failed");
+            continue;
+        }
+        std::println("Sent {} bytes", sent);
     }
 }
