@@ -3,9 +3,9 @@
 
 class FileDescriptor {
 private:
+    friend class DatagramSocket;
     int fd{-1};
 
-public:
     FileDescriptor() = default;
     explicit FileDescriptor(int fd) : fd(fd) {}
 
@@ -23,7 +23,6 @@ public:
         other.fd = -1;
         return *this;
     }
-
 
     ~FileDescriptor() {     // Destructor (Close the file descriptor)
         if (fd != -1)

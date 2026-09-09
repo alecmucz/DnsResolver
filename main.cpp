@@ -11,7 +11,7 @@
 #include "socket/SocketAddress.h"
 
 int main() {
-    auto ip = IpAddress::from_string("127.0.0.1");
+    auto ip = IpAddress::parse("127.0.0.1");
 
     if (!ip) {
         std::println("Invalid IP address");

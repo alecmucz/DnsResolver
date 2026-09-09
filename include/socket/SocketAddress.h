@@ -5,8 +5,18 @@
 
 class SocketAddress {
 private:
+    friend class DatagramSocket;
     IpAddress address;
     std::uint16_t port_{0};
+
+    [[nodiscard]]
+    sockaddr_storage to_sockaddr() const noexcept;
+
+    [[nodiscard]]
+    static SocketAddress from_sockaddr(const sockaddr_storage &storage) noexcept;
+
+    [[nodiscard]]
+    socklen_t sockaddr_length() const noexcept;
 
 public:
     SocketAddress() = delete;
@@ -20,14 +30,5 @@ public:
 
     [[nodiscard]]
     std::uint16_t port() const noexcept;
-
-    [[nodiscard]]
-    sockaddr_storage to_sockaddr() const noexcept;
-
-    [[nodiscard]]
-    static SocketAddress from_sockaddr(const sockaddr_storage &storage) noexcept;
-
-    [[nodiscard]]
-    socklen_t sockaddr_length() const noexcept;
 };
 
