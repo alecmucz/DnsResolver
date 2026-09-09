@@ -26,7 +26,6 @@ public:
         }
     }
 
-
     void bind(const SocketAddress &address) ;
 
     ssize_t send(std::span<const std::byte> data,
