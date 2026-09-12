@@ -31,22 +31,35 @@ Key areas of focus include:
 
 The project is organized into small components with the goal of keeping protocol logic independent from the operating system's networking details.
 
+```mermaid
+flowchart TD
+    App["Application / CLI"]
+    Resolver["Resolver"]
+    DNS["DNS Layer"]
+    Socket["Socket Layer"]
+    Cache["Cache"]
+    OS["POSIX / BSD Sockets"]
+
+    App --> Resolver
+    Resolver --> DNS
+    Resolver --> Socket
+    Resolver --> Cache
+    Socket --> OS
+```
+
 ### Socket Layer
 
-The socket layer provides the low-level networking foundation for the resolver.
+The socket layer isolates the resolver from the POSIX/BSD sockets API and provides the networking primitives used by higher-level components.
 
-Its main types are:
+It currently supports IPv4 and IPv6 addressing along with UDP datagram communication, while managing native socket resources through RAII. Platform-specific details such as file descriptors, data structures, byte-order conversions, and direct socket system calls are kept within this subsystem.
 
-* `FileDescriptor` — move-only RAII ownership of a native file descriptor
-* `IpAddress` — IPv4/IPv6 address representation and conversion
-* `SocketAddress` — an IP address and port
-* `DatagramSocket` — UDP socket operations
+This allows the DNS and resolver layers to work with higher-level C++ types without depending directly on the operating system's networking representation.
 
-Native socket structures, file descriptors, address conversions, and socket system calls are kept within this layer where practical.
+See the [Socket Layer documentation](include/socket/README.md) for details on its architecture, ownership model, address representation, error handling, and API usage.
 
 ### DNS Layer
 
-*Planned.* The DNS layer handles DNS-specific protocol behavior on byte-oriented data, without interacting with native socket APIs. It has two halves.
+*Planned.* The DNS layer handles DNS-specific protocol behavior on byte-oriented data without interacting with native socket APIs. It has two halves.
 
 **Encoding** builds a query directly from its wire representation:
 
@@ -63,8 +76,6 @@ Native socket structures, file descriptors, address conversions, and socket syst
 * bounds-checked reads
 * defined behavior on malformed packets
 
-Parsing is the adversarial half. Its input arrives from the network and cannot be trusted, so every read is bounds-checked and every failure is reported rather than assumed away.
-
 ### Resolver
 
 *Planned.* The resolver combines the DNS and networking layers into a usable stub resolver:
@@ -76,7 +87,7 @@ Parsing is the adversarial half. Its input arrives from the network and cannot b
 
 ### Cache
 
-*Planned.* A TTL-aware LRU cache sits in front of the resolver so repeated lookups do not go out to the network. Entries expire according to the TTL of the records they hold, and eviction is least-recently-used once the cache is full.
+*Planned.* A TTL-aware LRU cache sits in front of the resolver so repeated lookups do not go out to the network. Entries expire according to the TTL of the records they hold, and eviction is least recently used once the cache is full.
 
 ## Project Structure
 
