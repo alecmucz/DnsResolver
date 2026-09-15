@@ -27,7 +27,9 @@ FetchContent_MakeAvailable(Catch2)
 enable_testing()
 
 # MAIN EXECUTABLE (APP)
-add_executable(DnsResolver main.cpp)
+add_executable(DnsResolver main.cpp
+        src/dns/DnsPacket.cpp
+        include/dns/DnsPacket.h)
 target_link_libraries(DnsResolver
                     PRIVATE
                     socket)
