@@ -1,6 +1,8 @@
 #include "dns/DomainName.h"
 #include <algorithm>
 
+
+
 dns::DomainName::DomainName(std::string_view n) {
 
 }
@@ -31,4 +33,22 @@ dns::DomainName::DomainName(std::span<const std::byte> bytes) {
     throw std::invalid_argument("Incomplete Domain Name Wire Data");
 }
 
-bool dns::DomainName::operator==(const DomainName& other) const noexcept {}
+bool dns::DomainName::operator==(const DomainName& other) const noexcept {
+    if (length != other.length) {
+        return false;
+    }
+    for (size_t i = 0; i < length; ++i) {
+        auto check = other.name[i];
+        auto og = this->name[i];
+        if (check >= std::byte{'A'} && check <= std::byte{'Z'}) {
+            check |= std::byte{0x20};
+        }
+        if (og >= std::byte{'A'} && og <= std::byte{'Z'}) {
+            og |= std::byte{0x20};
+        }
+        if (og != check) {
+            return false;
+        }
+    }
+    return true;
+}
