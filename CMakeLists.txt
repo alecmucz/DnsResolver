@@ -28,8 +28,10 @@ enable_testing()
 
 # MAIN EXECUTABLE (APP)
 add_executable(DnsResolver main.cpp
-        src/dns/DnsPacket.cpp
-        include/dns/DnsPacket.h)
+        src/dns/Message.cpp
+        include/dns/Message.h
+        src/dns/DomainName.cpp
+        include/dns/DomainName.h)
 target_link_libraries(DnsResolver
                     PRIVATE
                     socket)

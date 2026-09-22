@@ -1,8 +1,9 @@
 #pragma once
 
 #include <cstddef>
-#include <string>
 #include <vector>
+
+#include "dns/DomainName.h"
 
 namespace dns {
 
@@ -25,28 +26,31 @@ namespace dns {
     };
 
     struct Question {
-        std::string qname;
-        ResourceRecordType qtype;
-        RecordClass qclass_{RecordClass::IN};
+        DomainName qname;
+        ResourceRecordType type;
+        RecordClass class_{RecordClass::IN};
     };
 
     struct ResourceRecord {
-        std::string name;
+        DomainName name;
         ResourceRecordType type;
         RecordClass class_{RecordClass::IN};
-        std::uint32_t ttl{};
+        std::int32_t ttl{};     // RFC:1035 2.3.4. TTL -  Positive values of a signed 32 bit integer
         std::vector<std::byte> data;
     };
 
     class Message {
     private:
         std::uint16_t id{0};
-        std::uint16_t flags{0};
+        std::uint16_t flags{0}; // QR:0 , OpCode: 1-4 , AA:5 , TC:6 , RD:7 , RA:8 , Z:9 , AD:10 , CD:11 , RCODE:12-15
 
         std::vector<Question> questions;
         std::vector<ResourceRecord> answers;
         std::vector<ResourceRecord> authorities;
         std::vector<ResourceRecord> additionals;
+        
+    public:
+
     };
 
 }
