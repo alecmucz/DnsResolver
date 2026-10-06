@@ -2,7 +2,8 @@
 
 #include <algorithm>
 #include <iostream>
-#include <string>
+#include <cstring>
+#include <stdexcept>
 
 dns::DomainName::DomainName(std::string_view n) {
     if (n.empty())
@@ -83,4 +84,8 @@ bool dns::DomainName::operator==(const DomainName& other) const noexcept {
         }
     }
     return true;
+}
+
+std::span<const std::byte> dns::DomainName::bytes() const noexcept {
+    return std::span(name.data(), length);
 }

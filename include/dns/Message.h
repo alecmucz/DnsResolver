@@ -2,7 +2,7 @@
 
 #include <cstddef>
 #include <vector>
-
+#include <cstdint>
 #include "dns/DomainName.h"
 
 namespace dns {
@@ -11,7 +11,7 @@ namespace dns {
         Query  = 0, Notify = 4, Update = 5
     };
 
-    enum class ResourceRecordType : std::uint16_t {
+    enum class RecordType : std::uint16_t {
         A   = 1,  NS   = 2,  CNAME = 5,  SOA = 6, MX  = 15,
         TXT = 16, AAAA = 28, SRV   = 33, ANY = 255
     };
@@ -27,30 +27,44 @@ namespace dns {
 
     struct Question {
         DomainName qname;
-        ResourceRecordType type;
+        RecordType type;
         RecordClass class_{RecordClass::IN};
     };
 
     struct ResourceRecord {
         DomainName name;
-        ResourceRecordType type;
+        RecordType type;
         RecordClass class_{RecordClass::IN};
-        std::int32_t ttl{};     // RFC:1035 2.3.4. TTL -  Positive values of a signed 32 bit integer
+        std::uint32_t ttl{};     // RFC:2181 Sec.8 TTL; If MSB = 1 then value = 0
         std::vector<std::byte> data;
     };
 
     class Message {
     private:
-        std::uint16_t id{0};
+        friend class Parser;
+        std::uint16_t id_{0};
         std::uint16_t flags{0}; // QR:0 , OpCode: 1-4 , AA:5 , TC:6 , RD:7 , RA:8 , Z:9 , AD:10 , CD:11 , RCODE:12-15
 
         std::vector<Question> questions;
         std::vector<ResourceRecord> answers;
         std::vector<ResourceRecord> authorities;
         std::vector<ResourceRecord> additionals;
+
+        static constexpr std::uint16_t RD_MASK{0x0100};
+
+        Message() = default;
+
+        static std::uint16_t createId();
         
     public:
+        [[nodiscard]]
+        static Message query(const DomainName& name, RecordType type, RecordClass cls);
 
+        [[nodiscard]]
+        std::uint16_t id() const noexcept;
+
+        [[nodiscard]]
+        bool recursion_desired() const noexcept;
     };
 
 }

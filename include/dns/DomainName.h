@@ -3,6 +3,7 @@
 #include <string_view>
 #include <array>
 #include <cstddef>
+#include <cstdint>
 #include <span>
 
 namespace dns { class DomainName {
@@ -15,5 +16,8 @@ public:
     explicit DomainName(std::span<const std::byte> bytes);
 
     bool operator==(const DomainName& other) const noexcept;
+
+    [[nodiscard]]
+    std::span<const std::byte> bytes() const noexcept;
 };
 }

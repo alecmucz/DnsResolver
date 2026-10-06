@@ -1,3 +1,5 @@
+#include <cstring>
+#include <utility>
 #include "socket/SocketAddress.h"
 
 const IpAddress& SocketAddress::ip_address() const noexcept {
