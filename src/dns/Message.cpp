@@ -8,7 +8,7 @@ std::uint16_t dns::Message::createId() {
     return dis(rd);
 }
 
-dns::Message dns::Message::query(const DomainName &name, RecordType type, RecordClass cls = RecordClass::IN) {
+dns::Message dns::Message::query(const DomainName &name, RecordType type, RecordClass cls) {
     Message m{};
     m.id_ = createId();
     m.flags |= RD_MASK;

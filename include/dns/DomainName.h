@@ -6,7 +6,8 @@
 #include <cstdint>
 #include <span>
 
-namespace dns { class DomainName {
+namespace dns {
+class DomainName {
 private:
     std::array<std::byte, 255> name;
     std::uint8_t length;

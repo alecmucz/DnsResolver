@@ -58,7 +58,7 @@ namespace dns {
         
     public:
         [[nodiscard]]
-        static Message query(const DomainName& name, RecordType type, RecordClass cls);
+        static Message query(const DomainName& name, RecordType type, RecordClass cls=RecordClass::IN);
 
         [[nodiscard]]
         std::uint16_t id() const noexcept;

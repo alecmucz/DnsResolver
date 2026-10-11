@@ -21,7 +21,10 @@ target_compile_options(socket
 # DNS LIBRARY
 add_library(dns STATIC
         src/dns/Message.cpp
-        src/dns/DomainName.cpp)
+        src/dns/DomainName.cpp
+        src/dns/Wire.cpp
+        src/dns/Wire.h
+)
 target_include_directories(dns
         PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include)

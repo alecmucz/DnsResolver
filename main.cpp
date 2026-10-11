@@ -80,5 +80,7 @@ int main() {
     //     std::println("Sent {} bytes", sent);
     // }
 
+    dns::Message::query(dns::DomainName{"www.google.com"}, dns::RecordType::A);
+
 
 }
