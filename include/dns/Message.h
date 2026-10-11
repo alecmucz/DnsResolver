@@ -61,6 +61,9 @@ namespace dns {
         static Message query(const DomainName& name, RecordType type, RecordClass cls=RecordClass::IN);
 
         [[nodiscard]]
+        std::size_t encode(std::span<std::byte> buffer) const;
+
+        [[nodiscard]]
         std::uint16_t id() const noexcept;
 
         [[nodiscard]]
