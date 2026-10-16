@@ -49,14 +49,20 @@ bool dns::WireReader::read_u8(std::uint8_t& n) {
 bool dns::WireReader::read_u16(std::uint16_t& n) {
     std::array<std::byte, 2> bytes{};
     if (!read_bytes(bytes)) {return false;}
-    n = std::to_integer<std::uint16_t>(bytes[0] << 8 | bytes[1]);
+    std::uint16_t hi = std::to_integer<std::uint16_t>(bytes[0]);
+    std::uint16_t lo = std::to_integer<std::uint16_t>(bytes[1]);
+    n = static_cast<uint16_t>(hi << 8 | lo);
     return true;
 }
 
 bool dns::WireReader::read_u32(std::uint32_t& n) {
     std::array<std::byte, 4> bytes{};
     if (!read_bytes(bytes)) {return false;}
-    n = std::to_integer<std::uint32_t>(bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]);
+    std::uint32_t hi = std::to_integer<std::uint32_t>(bytes[0]);
+    std::uint32_t hilo = std::to_integer<std::uint32_t>(bytes[1]);
+    std::uint32_t lohi = std::to_integer<std::uint32_t>(bytes[2]);
+    std::uint32_t lo = std::to_integer<std::uint32_t>(bytes[3]);
+    n = static_cast<uint32_t>(hi << 24 | hilo << 16 | lohi << 8 | lo);
     return true;
 }
 
