@@ -24,6 +24,8 @@ add_library(dns STATIC
         src/dns/DomainName.cpp
         src/dns/Wire.cpp
         src/dns/Wire.h
+        src/dns/Parser.cpp
+        include/dns/Parser.h
 )
 target_include_directories(dns
         PUBLIC

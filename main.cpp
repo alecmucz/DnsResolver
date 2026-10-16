@@ -24,4 +24,13 @@ int main() {
     }
     std::print("\n");
 
+    const SocketAddress upstream{*IpAddress::parse("1.1.1.1"), 53};
+    const DatagramSocket sock{AF_INET};
+    sock.send(std::span{buffer}.first(n), upstream);
+
+    std::array<std::byte, 512> reply;
+    std::optional<SocketAddress> sender;
+    std::println("received {} bytes", sock.recv(reply, sender));
+
+    return 0;
 }

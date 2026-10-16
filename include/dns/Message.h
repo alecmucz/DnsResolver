@@ -51,6 +51,7 @@ namespace dns {
         std::vector<ResourceRecord> additionals;
 
         static constexpr std::uint16_t RD_MASK{0x0100};
+        static constexpr std::uint16_t QR_MASK{0x8000};
 
         Message() = default;
 
@@ -67,7 +68,10 @@ namespace dns {
         std::uint16_t id() const noexcept;
 
         [[nodiscard]]
-        bool recursion_desired() const noexcept;
+        bool rd() const noexcept;
+
+        [[nodiscard]]
+        bool qr() const noexcept;
     };
 
 }

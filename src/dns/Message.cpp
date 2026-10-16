@@ -44,6 +44,10 @@ std::uint16_t dns::Message::id() const noexcept {
     return id_;
 }
 
-bool dns::Message::recursion_desired() const noexcept {
+bool dns::Message::rd() const noexcept {
     return flags & RD_MASK;
+}
+
+bool dns::Message::qr() const noexcept {
+    return flags & QR_MASK;
 }
