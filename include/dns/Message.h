@@ -3,6 +3,9 @@
 #include <cstddef>
 #include <vector>
 #include <cstdint>
+#include <optional>
+
+#include "../../src/dns/Wire.h"
 #include "dns/DomainName.h"
 
 namespace dns {
@@ -41,10 +44,10 @@ namespace dns {
 
     class Message {
     private:
-        friend class Parser;
         std::uint16_t id_{0};
         std::uint16_t flags{0}; // QR:0 , OpCode: 1-4 , AA:5 , TC:6 , RD:7 , RA:8 , Z:9 , AD:10 , CD:11 , RCODE:12-15
 
+        struct Counts{ std::uint16_t qd, an, ns, ar; };
         std::vector<Question> questions;
         std::vector<ResourceRecord> answers;
         std::vector<ResourceRecord> authorities;
@@ -56,10 +59,16 @@ namespace dns {
         Message() = default;
 
         static std::uint16_t createId();
+        bool read_header(WireReader& reader, Counts& counts);
+        bool read_question(WireReader& reader, std::span<const std::byte> buffer);
+        std::optional<DomainName> read_name(WireReader& reader);
         
     public:
         [[nodiscard]]
         static Message query(const DomainName& name, RecordType type, RecordClass cls=RecordClass::IN);
+
+        [[nodiscard]]
+        static Message parse(std::span<const std::byte> buffer);
 
         [[nodiscard]]
         std::size_t encode(std::span<std::byte> buffer) const;

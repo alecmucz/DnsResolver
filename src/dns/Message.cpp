@@ -2,6 +2,9 @@
 #include "Wire.h"
 #include <random>
 #include <utility>
+#include <sys/sysctl.h>
+#include <sys/sysctl.h>
+#include <sys/sysctl.h>
 
 std::uint16_t dns::Message::createId() {
     static std::random_device rd{};
@@ -9,11 +12,72 @@ std::uint16_t dns::Message::createId() {
     return dis(rd);
 }
 
+bool dns::Message::read_header(WireReader& reader, Counts& counts) {
+    return reader.read_u16(id_)
+        && reader.read_u16(flags)
+        && reader.read_u16(counts.qd)
+        && reader.read_u16(counts.an)
+        && reader.read_u16(counts.ns)
+        && reader.read_u16(counts.ar);
+}
+
+std::optional<dns::DomainName> dns::Message::read_name(WireReader& reader){
+    std::array<std::byte, 255> name_buffer{};
+    std::size_t pos{};
+
+    while (1) {
+        std::uint8_t label_len{};
+
+        if (!reader.read_u8(label_len)) {
+            return std::nullopt;
+        }
+
+        if ((label_len & 0b1100'0000) == 0b1100'0000) {     // Pointer
+            return std::nullopt;
+        }
+
+        if ((label_len & 0b1100'0000) == 0b0000'0000) {     // Label
+            if (pos + label_len  + 1 > name_buffer.size())
+                return std::nullopt;
+
+            name_buffer[pos] = static_cast<std::byte>(label_len);
+            pos += 1;
+
+            if (label_len == 0)
+                break;
+
+            if (!reader.read_bytes(std::span(name_buffer).subspan(pos, label_len)))
+                return std::nullopt;
+
+            pos += label_len;
+        }
+
+        if ((label_len & 0b1000'0000) == 0b1000'0000    // Reserved (RFC 6891)
+            || (label_len & 0b0100'0000) == 0b0100'0000) { // Extended Label (RFC 2673 & RFC 6891)
+            return std::nullopt;
+        }
+    }
+    return DomainName{std::span(name_buffer).first(pos)};
+}
+
 dns::Message dns::Message::query(const DomainName &name, RecordType type, RecordClass cls) {
     Message m{};
     m.id_ = createId();
     m.flags |= RD_MASK;
     m.questions.emplace_back(name, type, cls);
+    return m;
+}
+
+dns::Message dns::Message::parse(std::span<const std::byte> buffer) {
+    WireReader reader{buffer};
+    Message m{};
+    Counts m_counts{};
+
+    if (!(m.read_header(reader, m_counts)))
+        throw std::runtime_error{"Invalid DNS message"};
+
+
+
     return m;
 }
 
