@@ -3,8 +3,7 @@
 #include <random>
 #include <utility>
 #include <sys/sysctl.h>
-#include <sys/sysctl.h>
-#include <sys/sysctl.h>
+#include <stdexcept>
 
 std::uint16_t dns::Message::createId() {
     static std::random_device rd{};
@@ -21,42 +20,62 @@ bool dns::Message::read_header(WireReader& reader, Counts& counts) {
         && reader.read_u16(counts.ar);
 }
 
+// ToDo: Pointer Loop Guard
 std::optional<dns::DomainName> dns::Message::read_name(WireReader& reader){
     std::array<std::byte, 255> name_buffer{};
     std::size_t pos{};
+    std::size_t prev_pos{};
+    bool jump{false};
 
     while (1) {
-        std::uint8_t label_len{};
+        std::uint8_t label{};
 
-        if (!reader.read_u8(label_len)) {
+        if (!reader.read_u8(label)) {
             return std::nullopt;
         }
 
-        if ((label_len & 0b1100'0000) == 0b1100'0000) {     // Pointer
-            return std::nullopt;
+        if ((label & 0b1100'0000) == 0b1100'0000) {     // Pointer
+            std::uint16_t offset{label};
+            offset = (offset & 0b0011'1111) << 8;
+            if (!reader.read_u8(label)) {
+                return std::nullopt;
+            }
+            offset = offset | label;
+
+            if (!jump) {
+                prev_pos = reader.offset();
+                jump = true;
+            }
+
+            if (!reader.seek(offset)) {
+                return std::nullopt;
+            }
+            continue;
         }
 
-        if ((label_len & 0b1100'0000) == 0b0000'0000) {     // Label
-            if (pos + label_len  + 1 > name_buffer.size())
+
+        if ((label & 0b1100'0000) == 0b0000'0000) {     // Label
+            if (pos + label  + 1 > name_buffer.size())
                 return std::nullopt;
 
-            name_buffer[pos] = static_cast<std::byte>(label_len);
+            name_buffer[pos] = static_cast<std::byte>(label);
             pos += 1;
 
-            if (label_len == 0)
+            if (label == 0)
                 break;
 
-            if (!reader.read_bytes(std::span(name_buffer).subspan(pos, label_len)))
+            if (!reader.read_bytes(std::span(name_buffer).subspan(pos, label)))
                 return std::nullopt;
 
-            pos += label_len;
+            pos += label;
         }
 
-        if ((label_len & 0b1000'0000) == 0b1000'0000    // Reserved (RFC 6891)
-            || (label_len & 0b0100'0000) == 0b0100'0000) { // Extended Label (RFC 2673 & RFC 6891)
+        if ((label & 0b1000'0000) == 0b1000'0000    // Reserved (RFC 6891)
+            || (label & 0b0100'0000) == 0b0100'0000) { // Extended Label (RFC 2673 & RFC 6891)
             return std::nullopt;
         }
     }
+    if (jump) if (!reader.seek(prev_pos)) return std::nullopt;
     return DomainName{std::span(name_buffer).first(pos)};
 }
 
