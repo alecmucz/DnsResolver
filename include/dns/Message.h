@@ -39,7 +39,7 @@ namespace dns {
         RecordType type;
         RecordClass class_{RecordClass::IN};
         std::uint32_t ttl{};     // RFC:2181 Sec.8 TTL; If MSB = 1 then value = 0
-        std::vector<std::byte> data;
+        std::vector<std::byte> rdata;    //rlength derived
     };
 
     class Message {
@@ -60,7 +60,8 @@ namespace dns {
 
         static std::uint16_t createId();
         bool read_header(WireReader& reader, Counts& counts);
-        bool read_question(WireReader& reader, std::span<const std::byte> buffer);
+        bool read_question(WireReader& reader);
+        std::optional<ResourceRecord> read_record(WireReader& reader);
         std::optional<DomainName> read_name(WireReader& reader);
         
     public:

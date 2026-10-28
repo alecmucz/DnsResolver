@@ -79,6 +79,41 @@ std::optional<dns::DomainName> dns::Message::read_name(WireReader& reader){
     return DomainName{std::span(name_buffer).first(pos)};
 }
 
+bool dns::Message::read_question(WireReader &reader) {
+    auto qname = read_name(reader);
+    if (!qname) return false;
+
+    std::uint16_t qtype{}, qclass{};
+    if (!reader.read_u16(qtype) || !reader.read_u16(qclass)) return false;
+
+    questions.emplace_back(*qname,
+                           static_cast<RecordType>(qtype),
+                           static_cast<RecordClass>(qclass));
+    return true;
+}
+
+std::optional<dns::ResourceRecord> dns::Message::read_record(WireReader& reader) {
+    auto qname = read_name(reader);
+    if (!qname) return std::nullopt;
+
+    std::uint16_t qtype{}, qclass{};
+    std::uint32_t ttl{0};
+    std::uint16_t rlength{};
+
+    if (!reader.read_u16(qtype) || !reader.read_u16(qclass)
+        || !reader.read_u32(ttl) ||  !reader.read_u16(rlength))
+        return std::nullopt;
+
+    std::vector<std::byte> rdata(rlength);
+    if (!reader.read_bytes(rdata)) return std::nullopt;
+
+    return ResourceRecord{*qname,
+                          static_cast<RecordType>(qtype),
+                          static_cast<RecordClass>(qclass),
+                          ttl,
+                          rdata};
+}
+
 dns::Message dns::Message::query(const DomainName &name, RecordType type, RecordClass cls) {
     Message m{};
     m.id_ = createId();
