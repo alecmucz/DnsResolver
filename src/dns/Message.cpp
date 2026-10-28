@@ -2,7 +2,6 @@
 #include "Wire.h"
 #include <random>
 #include <utility>
-#include <sys/sysctl.h>
 #include <stdexcept>
 
 std::uint16_t dns::Message::createId() {
@@ -36,7 +35,7 @@ std::optional<dns::DomainName> dns::Message::read_name(WireReader& reader){
 
         if ((label & 0b1100'0000) == 0b1100'0000) {     // Pointer
             std::uint16_t offset{label};
-            offset = (offset & 0b0011'1111) << 8;
+            offset = static_cast<std::uint16_t>((offset & 0b0011'1111) << 8);
             if (!reader.read_u8(label)) {
                 return std::nullopt;
             }
@@ -52,7 +51,6 @@ std::optional<dns::DomainName> dns::Message::read_name(WireReader& reader){
             }
             continue;
         }
-
 
         if ((label & 0b1100'0000) == 0b0000'0000) {     // Label
             if (pos + label  + 1 > name_buffer.size())
@@ -86,7 +84,7 @@ bool dns::Message::read_question(WireReader &reader) {
     std::uint16_t qtype{}, qclass{};
     if (!reader.read_u16(qtype) || !reader.read_u16(qclass)) return false;
 
-    questions.emplace_back(*qname,
+    questions_.emplace_back(*qname,
                            static_cast<RecordType>(qtype),
                            static_cast<RecordClass>(qclass));
     return true;
@@ -104,6 +102,7 @@ std::optional<dns::ResourceRecord> dns::Message::read_record(WireReader& reader)
         || !reader.read_u32(ttl) ||  !reader.read_u16(rlength))
         return std::nullopt;
 
+    // ToDo: RData Decompression
     std::vector<std::byte> rdata(rlength);
     if (!reader.read_bytes(rdata)) return std::nullopt;
 
@@ -114,11 +113,13 @@ std::optional<dns::ResourceRecord> dns::Message::read_record(WireReader& reader)
                           rdata};
 }
 
+// Public Methods
+
 dns::Message dns::Message::query(const DomainName &name, RecordType type, RecordClass cls) {
     Message m{};
     m.id_ = createId();
     m.flags |= RD_MASK;
-    m.questions.emplace_back(name, type, cls);
+    m.questions_.emplace_back(name, type, cls);
     return m;
 }
 
@@ -127,7 +128,7 @@ dns::Message dns::Message::parse(std::span<const std::byte> buffer) {
     Message m{};
     Counts m_counts{};
 
-    if (!(m.read_header(reader, m_counts)))
+    if (!(m.read_header(reader, m_counts)))     // Header
         throw std::runtime_error{"Invalid DNS message"};
 
     for (std::size_t i = 0; i < m_counts.qd; ++i) {     // Question Record
@@ -138,19 +139,19 @@ dns::Message dns::Message::parse(std::span<const std::byte> buffer) {
     for (std::size_t i = 0; i < m_counts.an; ++i) {     // Answer Record
         auto r = m.read_record(reader);
         if (!r) throw std::runtime_error{"Invalid DNS message"};
-        m.answers.emplace_back(std::move(*r));
+        m.answers_.emplace_back(std::move(*r));
     }
 
     for (std::size_t i = 0; i < m_counts.ns; ++i) {     // Authority Record
         auto r = m.read_record(reader);
         if (!r) throw std::runtime_error{"Invalid DNS message"};
-        m.authorities.emplace_back(std::move(*r));
+        m.authorities_.emplace_back(std::move(*r));
     }
 
     for (std::size_t i = 0; i < m_counts.ar; ++i) {     // Add. Info. Record
         auto r = m.read_record(reader);
         if (!r) throw std::runtime_error{"Invalid DNS message"};
-        m.additionals.emplace_back(std::move(*r));
+        m.additionals_.emplace_back(std::move(*r));
     }
 
     return m;
@@ -159,7 +160,7 @@ dns::Message dns::Message::parse(std::span<const std::byte> buffer) {
 std::size_t dns::Message::encode(std::span<std::byte> buffer) const {
     WireWriter writer{buffer};
 
-    uint16_t qdcount = static_cast<uint16_t>(questions.size());
+    uint16_t qdcount = static_cast<uint16_t>(questions_.size());
 
     if (!(writer.write_u16(id_)
         && writer.write_u16(flags)
@@ -169,7 +170,7 @@ std::size_t dns::Message::encode(std::span<std::byte> buffer) const {
         && writer.write_u16(0))) {
         return 0;}
 
-    for (const auto &q : questions) {
+    for (const auto &q : questions_) {
         if (!(writer.write_bytes(q.qname.bytes())
         &&  writer.write_u16(std::to_underlying(q.type))
         &&  writer.write_u16(std::to_underlying(q.class_)))){
@@ -183,10 +184,58 @@ std::uint16_t dns::Message::id() const noexcept {
     return id_;
 }
 
+bool dns::Message::qr() const noexcept {
+    return flags & QR_MASK;
+}
+
+dns::Opcode dns::Message::opcode() const noexcept {
+    return static_cast<Opcode>((flags & OPCODE_MASK) >> 11);
+}
+
+bool dns::Message::aa() const noexcept {
+    return flags & AA_MASK;
+}
+
+bool dns::Message::tc() const noexcept {
+    return flags & TC_MASK;
+}
+
 bool dns::Message::rd() const noexcept {
     return flags & RD_MASK;
 }
 
-bool dns::Message::qr() const noexcept {
-    return flags & QR_MASK;
+bool dns::Message::ra() const noexcept {
+    return flags & RA_MASK;
+}
+
+bool dns::Message::z() const noexcept {
+    return flags & Z_MASK;
+}
+
+bool dns::Message::ad() const noexcept {
+    return flags & AD_MASK;
+}
+
+bool dns::Message::cd() const noexcept {
+    return flags & CD_MASK;
+}
+
+dns::ResponseCode dns::Message::rcode() const noexcept {
+    return static_cast<ResponseCode>(flags & RCODE_MASK);
+}
+
+std::span<const dns::Question> dns::Message::questions() const noexcept {
+    return questions_;
+}
+
+std::span<const dns::ResourceRecord> dns::Message::answers() const noexcept {
+    return answers_;
+}
+
+std::span<const dns::ResourceRecord> dns::Message::authorities() const noexcept {
+    return authorities_;
+}
+
+std::span<const dns::ResourceRecord> dns::Message::additionals() const noexcept {
+    return additionals_;
 }

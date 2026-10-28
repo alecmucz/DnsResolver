@@ -46,15 +46,22 @@ namespace dns {
     private:
         std::uint16_t id_{0};
         std::uint16_t flags{0}; // QR:0 , OpCode: 1-4 , AA:5 , TC:6 , RD:7 , RA:8 , Z:9 , AD:10 , CD:11 , RCODE:12-15
+        static constexpr std::uint16_t     QR_MASK{0x8000};
+        static constexpr std::uint16_t OPCODE_MASK{0x7800};
+        static constexpr std::uint16_t     AA_MASK{0x0400};
+        static constexpr std::uint16_t     TC_MASK{0x0200};
+        static constexpr std::uint16_t     RD_MASK{0x0100};
+        static constexpr std::uint16_t     RA_MASK{0x0080};
+        static constexpr std::uint16_t      Z_MASK{0x0040};
+        static constexpr std::uint16_t     AD_MASK{0x0020};
+        static constexpr std::uint16_t     CD_MASK{0x0010};
+        static constexpr std::uint16_t   RCODE_MASK{0x000F};
 
         struct Counts{ std::uint16_t qd, an, ns, ar; };
-        std::vector<Question> questions;
-        std::vector<ResourceRecord> answers;
-        std::vector<ResourceRecord> authorities;
-        std::vector<ResourceRecord> additionals;
-
-        static constexpr std::uint16_t RD_MASK{0x0100};
-        static constexpr std::uint16_t QR_MASK{0x8000};
+        std::vector<Question> questions_;
+        std::vector<ResourceRecord> answers_;
+        std::vector<ResourceRecord> authorities_;
+        std::vector<ResourceRecord> additionals_;
 
         Message() = default;
 
@@ -62,7 +69,7 @@ namespace dns {
         bool read_header(WireReader& reader, Counts& counts);
         bool read_question(WireReader& reader);
         std::optional<ResourceRecord> read_record(WireReader& reader);
-        std::optional<DomainName> read_name(WireReader& reader);
+        static std::optional<DomainName> read_name(WireReader& reader);
         
     public:
         [[nodiscard]]
@@ -78,10 +85,45 @@ namespace dns {
         std::uint16_t id() const noexcept;
 
         [[nodiscard]]
+        bool qr() const noexcept;
+
+        [[nodiscard]]
+        Opcode opcode() const noexcept;
+
+        [[nodiscard]]
+        bool aa() const noexcept;
+
+        [[nodiscard]]
+        bool tc() const noexcept;
+
+        [[nodiscard]]
         bool rd() const noexcept;
 
         [[nodiscard]]
-        bool qr() const noexcept;
-    };
+        bool ra() const noexcept;
 
+        [[nodiscard]]
+        bool z() const noexcept;
+
+        [[nodiscard]]
+        bool ad() const noexcept;
+
+        [[nodiscard]]
+        bool cd() const noexcept;
+
+        [[nodiscard]]
+        ResponseCode rcode() const noexcept;
+
+        [[nodiscard]]
+        std::span<const Question> questions() const noexcept;
+
+        [[nodiscard]]
+        std::span<const ResourceRecord> authorities() const noexcept;
+
+        [[nodiscard]]
+        std::span<const ResourceRecord> answers() const noexcept;
+
+        [[nodiscard]]
+        std::span<const ResourceRecord> additionals() const noexcept;
+    };
 }
