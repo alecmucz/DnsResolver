@@ -130,7 +130,28 @@ dns::Message dns::Message::parse(std::span<const std::byte> buffer) {
     if (!(m.read_header(reader, m_counts)))
         throw std::runtime_error{"Invalid DNS message"};
 
+    for (std::size_t i = 0; i < m_counts.qd; ++i) {     // Question Record
+        auto q = m.read_question(reader);
+        if (!q) throw std::runtime_error{"Invalid DNS message"};
+    }
 
+    for (std::size_t i = 0; i < m_counts.an; ++i) {     // Answer Record
+        auto r = m.read_record(reader);
+        if (!r) throw std::runtime_error{"Invalid DNS message"};
+        m.answers.emplace_back(std::move(*r));
+    }
+
+    for (std::size_t i = 0; i < m_counts.ns; ++i) {     // Authority Record
+        auto r = m.read_record(reader);
+        if (!r) throw std::runtime_error{"Invalid DNS message"};
+        m.authorities.emplace_back(std::move(*r));
+    }
+
+    for (std::size_t i = 0; i < m_counts.ar; ++i) {     // Add. Info. Record
+        auto r = m.read_record(reader);
+        if (!r) throw std::runtime_error{"Invalid DNS message"};
+        m.additionals.emplace_back(std::move(*r));
+    }
 
     return m;
 }
