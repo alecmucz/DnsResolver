@@ -42,3 +42,69 @@ TEST_CASE("DNS Message Encoding") {
             "\x00\x01"          // QTYPE  = A
             "\x00\x01"sv);      // QCLASS = IN
 }
+
+TEST_CASE("DNS Message Parsing") {
+    using namespace std::string_view_literals;
+    constexpr auto response =
+        // Header
+        "\022\064"              // ID = 0x1234
+        "\201\200"              // flags: QR, RD, RA
+        "\000\001"              // QDCOUNT = 1
+        "\000\002"              // ANCOUNT = 2
+        "\000\000"              // NSCOUNT = 0
+        "\000\000"              // ARCOUNT = 0
+        // Question
+        "\003www\007example\003com\000"
+        "\000\001"              // QTYPE  = A
+        "\000\001"              // QCLASS = IN
+        // Answer 1
+        "\300\014"              // NAME   = pointer to offset 12
+        "\000\001"              // TYPE   = A
+        "\000\001"              // CLASS  = IN
+        "\000\000\016\020"      // TTL    = 3600
+        "\000\004"              // RDLENGTH = 4
+        "\135\270\330\042"      // 93.184.216.34
+        // Answer 2
+        "\300\014"
+        "\000\001"
+        "\000\001"
+        "\000\000\000\074"      // TTL    = 60
+        "\000\004"
+        "\001\002\003\004"sv;   // 1.2.3.4
+
+    auto bytes = std::as_bytes(std::span{response});
+    auto m = dns::Message::parse(bytes);
+
+    REQUIRE(m.id() == 0x1234);
+    REQUIRE(m.qr() == true);
+    REQUIRE(m.rd() == true);
+    REQUIRE(m.ra() == true);
+    REQUIRE(m.aa() == false);
+    REQUIRE(m.tc() == false);
+    REQUIRE(m.rcode() == dns::ResponseCode::NoError);
+    REQUIRE(m.questions().size() == 1);
+    REQUIRE(m.answers().size() == 2);
+    REQUIRE(m.authorities().size() == 0);
+    REQUIRE(m.additionals().size() == 0);
+
+
+    const auto& a1 = m.answers()[0];
+    const auto& a2 = m.answers()[1];
+
+    REQUIRE(a1.type == dns::RecordType::A);
+    REQUIRE(a1.ttl == 3600);
+    REQUIRE(a1.rdata.size() == 4);
+    REQUIRE(a1.rdata == std::vector{std::byte{93}, std::byte{184}, std::byte{216}, std::byte{34}});
+
+    REQUIRE(a2.ttl == 60);
+    REQUIRE(a2.rdata == std::vector{std::byte{1}, std::byte{2}, std::byte{3}, std::byte{4}});
+
+    REQUIRE(m.questions()[0].qname.toString() == "www.example.com");
+    REQUIRE(m.answers()[0].name.toString() == "www.example.com");   // via \300\014 pointer
+    REQUIRE(m.answers()[1].name.toString() == "www.example.com");
+
+    REQUIRE_THROWS(dns::Message::parse(bytes.first(0)));    // empty
+    REQUIRE_THROWS(dns::Message::parse(bytes.first(8)));    // short header
+    REQUIRE_THROWS(dns::Message::parse(bytes.first(40)));   // inside answer 1
+
+}
