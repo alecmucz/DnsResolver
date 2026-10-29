@@ -33,14 +33,32 @@ target_compile_options(dns
         -Wall -Wextra -Wpedantic -Wconversion)
 
 
-# CMAKE DEPENDENCY
+# TEST (CATCH2) DEPENDENCY
 include(FetchContent)
 FetchContent_Declare(
         Catch2
         GIT_REPOSITORY https://github.com/catchorg/Catch2.git
         GIT_TAG v3.15.3)
 FetchContent_MakeAvailable(Catch2)
+list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 enable_testing()
+include(Catch)
+add_executable(DnsResolverTest
+        tests/domainName_test.cpp
+        tests/Message_test.cpp
+)
+
+target_include_directories( DnsResolverTest
+        PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(DnsResolverTest
+        PRIVATE
+        dns Catch2::Catch2WithMain)
+target_compile_options(DnsResolverTest
+        PRIVATE
+        -Wall -Wextra -Wpedantic
+)
+catch_discover_tests(DnsResolverTest)
 
 # MAIN EXECUTABLE (APP)
 add_executable(DnsResolver main.cpp)

@@ -86,6 +86,34 @@ bool dns::DomainName::operator==(const DomainName& other) const noexcept {
     return true;
 }
 
-std::span<const std::byte> dns::DomainName::bytes() const noexcept {
+std::span<const std::byte> dns::DomainName::bytes() const {
     return std::span(name.data(), length);
+}
+
+std::string dns::DomainName::toString() const {
+    if (length == 1 && name[0] == std::byte{0}) {
+        return ".";
+    }
+
+    std::string str{};
+
+    for (size_t i{0}; i < length;) {
+        const uint8_t label_length = std::to_integer<uint8_t>(name[i]);
+
+        if (label_length == 0) {
+            break;
+        }
+
+        if (!str.empty()) {
+            str += '.';
+        }
+
+        ++i;
+
+        for (size_t j{0}; j < label_length && i < length; ++j, ++i) {
+            str += static_cast<char>(std::to_integer<unsigned char>(name[i]));
+        }
+    }
+
+    return str;
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <string_view>
+#include <string>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -19,6 +19,9 @@ public:
     bool operator==(const DomainName& other) const noexcept;
 
     [[nodiscard]]
-    std::span<const std::byte> bytes() const noexcept;
+    std::span<const std::byte> bytes() const;
+
+    [[nodiscard]]
+    std::string toString() const ;
 };
 }
