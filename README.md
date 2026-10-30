@@ -1,178 +1,155 @@
 # DNS Resolver
 
-A DNS stub resolver written in modern C++ 26.
+A DNS stub resolver written in C++26, built from scratch using POSIX/BSD sockets and the DNS specifications in RFC 1034 and RFC 1035.
 
-The project is built from the bottom up to explore DNS, binary network protocols, socket programming, resource ownership, and defensive parsing. Rather than relying on an existing networking or DNS framework, the resolver implements the core networking and protocol layers directly.
+The project started as a way to explore network programming, binary protocols, and resource ownership in C++. Instead of using an existing DNS or networking library, it implements the socket layer, DNS wire format, and resolver directly.
 
-This is a **stub resolver**: it sends queries to an upstream recursive resolver rather than performing full recursive resolution itself. Authoritative DNS serving, DNSSEC, DoT, DoH, and asynchronous networking are outside the initial scope.
+The resolver sends queries to an upstream recursive DNS server (`1.1.1.1` by default). It handles query encoding, response parsing, name compression, timeouts, retries, and reply validation. It does not perform recursive DNS resolution itself, and caching isn't implemented yet.
 
-## Status
+## Usage
 
-**Socket layer — in progress.**
+```text
+DnsResolver <name> [server]
+```
 
-No DNS queries are sent or parsed yet. The repository currently contains the UDP socket abstraction and a small interactive echo server used to exercise it. The DNS, resolver, and cache layers described below are planned, not implemented.
+The CLI looks up A records for `name`, optionally using a specified upstream DNS server. Each answer is printed as its name, TTL, type, and address.
 
-## Goals
+```console
+$ ./DnsResolver www.amazon.com
+www.amazon.com  1726  CNAME  (24 bytes)
+tp.47cf2c8c9-frontier.amazon.com  46  CNAME  (5 bytes)
+cf.47cf2c8c9-frontier.amazon.com  46  A  13.35.97.4
+```
 
-The primary goal of this project is to build a functional DNS resolver while developing a deeper understanding of the systems underneath DNS.
+This response includes a CNAME chain returned by the upstream resolver. CNAME targets aren't decoded from RDATA yet, so the CLI displays their raw byte lengths. Actual records and TTLs will vary.
 
-Key areas of focus include:
+The resolver can also query DNS servers on a local network. For example, querying a hostname on my homelab through its gateway:
 
-* BSD/POSIX socket programming
-* RAII and resource ownership
-* IPv4 and IPv6 addressing
-* Binary serialization and parsing
-* DNS message encoding and decoding
-* DNS name compression
-* Testing network and protocol code
-* DNS caching and TTL behavior
+```console
+$ ./DnsResolver core01.lab.alecmucz.com 10.0.10.1
+core01.lab.alecmucz.com  300  A  10.10.10.3
+```
+
+Nonexistent domains print the response code instead of answers:
+
+```console
+$ ./DnsResolver nonexistent.invalid
+NXDOMAIN
+```
+
+Timeouts and other resolver errors are written to stderr with a nonzero exit code.
 
 ## Architecture
 
-The project is organized into small components with the goal of keeping protocol logic independent from the operating system's networking details.
+The project is divided into three CMake libraries, keeping DNS protocol logic separate from the operating system's networking interfaces.
 
 ```mermaid
 flowchart TD
-    App["Application / CLI"]
+    App["CLI (main.cpp)"]
     Resolver["Resolver"]
     DNS["DNS Layer"]
     Socket["Socket Layer"]
-    Cache["Cache"]
+    Cache["Cache (planned)"]
     OS["POSIX / BSD Sockets"]
 
     App --> Resolver
     Resolver --> DNS
     Resolver --> Socket
-    Resolver --> Cache
+    Resolver -.-> Cache
     Socket --> OS
 ```
 
-### Socket Layer
+| Layer | Responsibility |
+|---|---|
+| [Socket Layer](include/socket/README.md) | IPv4/IPv6 addressing, UDP datagrams, receive timeouts, and RAII resource ownership. |
+| [DNS Layer](include/dns/README.md) | RFC 1035 message encoding and parsing, including bounds-checked reads and name compression. |
+| [Resolver](include/resolver/README.md) | Upstream query handling, per-attempt deadlines, retries, and response validation. |
 
-The socket layer isolates the resolver from the POSIX/BSD sockets API and provides the networking primitives used by higher-level components.
-
-It currently supports IPv4 and IPv6 addressing along with UDP datagram communication, while managing native socket resources through RAII. Platform-specific details such as file descriptors, data structures, byte-order conversions, and direct socket system calls are kept within this subsystem.
-
-This allows the DNS and resolver layers to work with higher-level C++ types without depending directly on the operating system's networking representation.
-
-See the [Socket Layer documentation](include/socket/README.md) for details on its architecture, ownership model, address representation, error handling, and API usage.
-
-### DNS Layer
-
-*Planned.* The DNS layer handles DNS-specific protocol behavior on byte-oriented data without interacting with native socket APIs. It has two halves.
-
-**Encoding** builds a query directly from its wire representation:
-
-* header fields and flags
-* domain names encoded as length-prefixed labels
-* question encoding
-* explicit network byte-order handling
-
-**Parsing** reads a response back out of a buffer received from an upstream resolver:
-
-* the four message sections
-* resource records
-* compressed domain names, including pointer loops
-* bounds-checked reads
-* defined behavior on malformed packets
-
-### Resolver
-
-*Planned.* The resolver combines the DNS and networking layers into a usable stub resolver:
-
-* sending queries to a configured upstream recursive resolver
-* matching responses to outstanding queries by transaction ID and question
-* timeouts and retries
-* TCP fallback when a response comes back truncated, including two-byte length framing
-
-### Cache
-
-*Planned.* A TTL-aware LRU cache sits in front of the resolver so repeated lookups do not go out to the network. Entries expire according to the TTL of the records they hold, and eviction is least recently used once the cache is full.
-
-## Project Structure
-
-```text
-DnsResolver/
-├── CMakeLists.txt
-├── README.md
-├── include/
-│   └── socket/
-│       ├── DatagramSocket.h
-│       ├── FileDescriptor.h
-│       ├── IpAddress.h
-│       └── SocketAddress.h
-├── src/
-│   └── socket/
-└── main.cpp
-```
-
-The structure will expand as the DNS and resolver components are implemented.
-
-## Building
+## Building and Testing
 
 ### Requirements
 
-* **POSIX host.** The socket layer uses BSD sockets directly; Windows is not supported.
-* **A C++26 toolchain.** Developed and tested with Homebrew Clang and libc++ on arm64 macOS. Other compilers with sufficient C++26 support (including `<print>`) should work but are untested.
-* **CMake 3.30 or newer**
-* **Git**
+- A POSIX-compatible system (developed on arm64 macOS). Windows isn't supported, since the socket layer uses BSD sockets directly.
+- A C++26 compiler and standard library supporting `<print>`
+- CMake 3.30 or newer
 
-Catch2 is retrieved automatically through CMake's `FetchContent`.
-
-### Configure
-
-```sh
-cmake -S . -B build
-```
+The project uses Apple Clang on macOS. Other toolchains may work but haven't been verified. On Linux, `<print>` needs a recent standard library (GCC 14+, or Clang with libc++ 17+).
 
 ### Build
 
 ```sh
+cmake -S . -B build
 cmake --build build
 ```
 
-### Run
-
-The current executable is a development program used to exercise the socket layer, not a DNS client.
-
-It binds a UDP socket to `127.0.0.1:9000`, prints each datagram it receives, and then blocks on standard input so a reply can be typed back to the sender. It runs until interrupted.
+The executable is written to the repository root:
 
 ```sh
-./build/DnsResolver
+./DnsResolver example.com
 ```
 
-In a second terminal:
+### Testing
+
+Catch2 is fetched automatically through CMake. Run the tests with:
 
 ```sh
-nc -u 127.0.0.1 9000
+ctest --test-dir build --output-on-failure
 ```
 
-Anything typed into `nc` is printed by the server; anything typed at the server's `Server>` prompt is sent back to `nc`.
+Unit tests cover domain name handling, query encoding, response parsing with compressed names, and truncated input. The resolver has also been checked manually against `dig` using public DNS and homelab queries.
 
-## Testing
+For example, the same lookup through `DnsResolver` and `dig`, run a few seconds apart:
 
-Catch2 is wired into the build via `FetchContent`.
+```console
+$ ./DnsResolver www.google.com
+www.google.com  289  A  142.251.157.119
+www.google.com  289  A  142.251.156.119
+www.google.com  289  A  142.251.154.119
+www.google.com  289  A  142.251.155.119
+www.google.com  289  A  142.251.151.119
+www.google.com  289  A  142.251.153.119
+www.google.com  289  A  142.251.150.119
+www.google.com  289  A  142.251.152.119
 
-Later testing work includes fuzzing the response parser and differential testing against existing DNS tools.
+$ dig @1.1.1.1 www.google.com A +noall +answer +nocmd
+www.google.com.         285     IN      A       142.251.152.119
+www.google.com.         285     IN      A       142.251.150.119
+www.google.com.         285     IN      A       142.251.156.119
+www.google.com.         285     IN      A       142.251.154.119
+www.google.com.         285     IN      A       142.251.153.119
+www.google.com.         285     IN      A       142.251.157.119
+www.google.com.         285     IN      A       142.251.151.119
+www.google.com.         285     IN      A       142.251.155.119
+```
 
-## Documentation
+Both return the same eight addresses. The order changes between queries, and the TTLs differ slightly because they count down from when each cache fetched the record.
 
-Documentation is maintained at three levels:
+The tests don't provide exhaustive malformed-packet coverage or fuzzing.
 
-* **Project documentation** — this README describes the overall project, architecture, status, and roadmap.
-* **Component documentation** — component READMEs describe the responsibilities and design of subsystems such as the socket and DNS layers.
-* **API documentation** — public C++ interfaces document important contracts, ownership semantics, errors, parameters, and behavior relevant to callers.
+## Limitations
 
-Implementation comments are reserved for behavior that is not reasonably explained by the code itself.
+The current implementation focuses on the core behavior of a DNS stub resolver, sticking mostly to the original 1987 RFCs. Several protocol features and safety improvements that later RFCs added remain unimplemented.
+
+- **UDP only:** Uses a 512-byte receive buffer and rejects responses with the TC flag set. EDNS0 (RFC 6891) and TCP fallback (required by RFC 7766) are not implemented.
+- **Fixed source port:** A `Resolver` reuses one socket and source port rather than randomizing the port for each query, as RFC 5452 recommends after the 2008 Kaminsky cache poisoning attack.
+- **Compression loops:** The parser doesn't detect cyclic compression pointers, which can cause it to hang on crafted responses.
+- **RDATA decoding:** Names embedded in CNAME and NS records are kept as raw bytes.
+- **CLI:** Supports A record queries only and doesn't independently follow CNAME chains.
+- **Concurrency:** A `Resolver` isn't thread-safe and should not be shared across threads making simultaneous queries.
+
+## Next
+
+- **Forwarding server:** Accept DNS queries from other machines on my homelab and forward them upstream.
+- **TTL-aware LRU cache:** Cache responses according to their TTLs, with a benchmark comparing cached and uncached lookup latency.
 
 ## Learning Resources
 
-The project is being developed alongside primary networking and protocol references, including:
+The project has been developed alongside several networking and C++ references:
 
-* *Computer Networking: A Top-Down Approach* — Kurose & Ross
-* *TCP/IP Illustrated, Volume 1* — Stevens & Fall
-* [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/)
-* [RFC 1034 — Domain Names: Concepts and Facilities](https://www.rfc-editor.org/rfc/rfc1034)
-* [RFC 1035 — Domain Names: Implementation and Specification](https://www.rfc-editor.org/rfc/rfc1035)
-* [cppreference](https://en.cppreference.com/)
-* [C++ Weekly](https://www.youtube.com/@cppweekly)
+- *TCP/IP Illustrated, Volume 1* — Stevens & Fall
+- [RFC 1034 — Domain Names: Concepts and Facilities](https://www.rfc-editor.org/rfc/rfc1034)
+- [RFC 1035 — Domain Names: Implementation and Specification](https://www.rfc-editor.org/rfc/rfc1035)
+- *Computer Networking: A Top-Down Approach* — Kurose & Ross
+- [Beej's Guide to Network Programming](https://beej.us/guide/bgnet/)
+- [cppreference](https://en.cppreference.com/)
+- [C++ Weekly](https://www.youtube.com/@cppweekly)
