@@ -25,6 +25,8 @@ public:
         const std::uint16_t port
         ) : address{address}, port_{port} {}
 
+    bool operator==(const SocketAddress &other) const noexcept;
+
     [[nodiscard]]
     const IpAddress& ip_address() const noexcept;
 

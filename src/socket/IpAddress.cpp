@@ -1,7 +1,20 @@
 #include <arpa/inet.h>
 #include <string>
 #include <system_error>
-#include "socket/IpAddress.h"
+#include <algorithm>
+#include <ranges>
+#include <socket/IpAddress.h>
+
+
+bool IpAddress::operator==(const IpAddress& other) const noexcept {
+    if (family() != other.family()) {
+        return false;
+    } else if (family() == AF_INET) {
+        return ipv4().s_addr == other.ipv4().s_addr;
+    } else {
+        return std::ranges::equal(ipv6().s6_addr, other.ipv6().s6_addr);
+    }
+}
 
 const in_addr& IpAddress::ipv4() const {
     return std::get<in_addr>(address);

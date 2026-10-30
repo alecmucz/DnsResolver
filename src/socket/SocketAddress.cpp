@@ -1,5 +1,6 @@
 #include <cstring>
 #include <utility>
+#include <algorithm>
 #include "socket/SocketAddress.h"
 
 const IpAddress& SocketAddress::ip_address() const noexcept {
@@ -8,6 +9,10 @@ const IpAddress& SocketAddress::ip_address() const noexcept {
 
 std::uint16_t SocketAddress::port() const noexcept {
     return port_;
+}
+
+bool SocketAddress::operator==(const SocketAddress &other) const noexcept {
+    return (address == other.address) && (port_ == other.port_);
 }
 
 sockaddr_storage SocketAddress::to_sockaddr() const noexcept {

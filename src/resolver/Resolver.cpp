@@ -20,13 +20,27 @@ dns::Message dns::Resolver::resolve(const dns::DomainName& name, dns::RecordType
             if (!n) {   // timeout
                 break;
             }
+
             // ToDo: Clean Up Try/Catch with proper error handling
+            if (r_addr != upstream) continue;
+            std::optional<Message> response;
             try {
-                Message response = Message::parse(std::span(r_buffer).first(*n));
-                if (response.id() == query.id()) {
-                    return response;
+                response = Message::parse(std::span(r_buffer).first(*n));
+            } catch (const std::exception&) { continue;}    // malformed datagram
+
+            if (response->id() != query.id()) continue;
+            if (!response.value().qr()) continue;
+
+            const auto questions = response->questions();
+            if (questions.empty()
+                || !(questions[0].qname == name)
+                || questions[0].type != type
+                || questions[0].class_ != RecordClass::IN) continue;
+
+                if (response->tc()) {
+                    throw std::runtime_error("DNS Resolver: Truncated Response");
                 }
-            } catch (const std::exception&) {}
+                return *response;
         }
     }
     throw std::runtime_error("DNS Resolver: Timed Out");

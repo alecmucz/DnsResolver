@@ -34,9 +34,8 @@ target_compile_options(dns
 
 # RESOLVER LIBRARY
 add_library(resolver STATIC
-        src/resolver/resolver.cpp
-        src/resolver/resolver.cpp
-        include/resolver/resolver.h)
+        src/resolver/Resolver.cpp
+        include/resolver/Resolver.h)
 target_include_directories(resolver
         PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -58,7 +57,7 @@ list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
 enable_testing()
 include(Catch)
 add_executable(DnsResolverTest
-        tests/domainName_test.cpp
+        tests/DomainName_test.cpp
         tests/Message_test.cpp
 )
 
@@ -76,6 +75,8 @@ catch_discover_tests(DnsResolverTest)
 
 # MAIN EXECUTABLE (APP)
 add_executable(DnsResolver main.cpp)
+set_target_properties(DnsResolver PROPERTIES
+        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(DnsResolver
         PRIVATE
         resolver)

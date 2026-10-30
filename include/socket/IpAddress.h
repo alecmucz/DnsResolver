@@ -18,6 +18,7 @@ private:
 
 public:
     IpAddress() = delete;
+    bool operator==(const IpAddress& other) const noexcept;
 
     [[nodiscard]] sa_family_t family() const noexcept;
 
