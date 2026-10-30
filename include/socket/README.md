@@ -1,126 +1,119 @@
 # Socket Layer
 
-The socket layer provides the low-level networking foundation for `DnsResolver`. Its purpose is to isolate the rest of the project from the details of the POSIX/BSD sockets API and expose a smaller set of C++ types for working with network addresses and UDP sockets.
+A small C++ networking layer built on POSIX/BSD sockets for `DnsResolver`. It handles native socket operations, address conversions, and resource ownership so the DNS and resolver code can work with C++ types instead of operating-system interfaces.
 
-Rather than allowing higher-level code to manipulate raw file descriptors, data structures, byte-order conversions, and socket system calls directly, those responsibilities are kept within this subsystem. The DNS and resolver layers can therefore operate on addresses, byte buffers, and socket objects without worrying about the operating system's networking representation.
+## Components
 
-## Design at a Glance
+| Type | Responsibility |
+|---|---|
+| `IpAddress` | Represents IPv4 and IPv6 addresses, with parsing and string conversion. |
+| `SocketAddress` | Combines an IP address with a port and handles native address conversion. |
+| `DatagramSocket` | Provides UDP socket operations for sending and receiving datagrams. |
+| `FileDescriptor` | Internal RAII wrapper managing native file descriptor ownership. |
 
 ```mermaid
 classDiagram
     direction LR
 
     class DatagramSocket {
-        +bind(address)
-        +send(data, destination)
-        +recv(buffer, sender)
         -FileDescriptor fd
+        +DatagramSocket(family)
+        +bind(address) void
+        +send(data, destination) ssize_t
+        +recv(buffer, sender, timeout) optional~size_t~
     }
 
     class SocketAddress {
-        +ip_address()
-        +port()
-        -to_sockaddr()
-        -from_sockaddr()
+        -IpAddress address
+        -uint16_t port_
+        +SocketAddress(address, port)
+        +ip_address() IpAddress
+        +port() uint16_t
+        +operator==(other) bool
+        -to_sockaddr() sockaddr_storage
+        -from_sockaddr(storage)$ SocketAddress
+        -sockaddr_length() socklen_t
     }
 
     class IpAddress {
-        +parse(text)
-        +family()
-        +to_string()
+        -variant~in_addr, in6_addr~ address
+        +parse(text)$ optional~IpAddress~
+        +family() sa_family_t
+        +to_string() string
+        +operator==(other) bool
+        -ipv4() in_addr
+        -ipv6() in6_addr
     }
 
     class FileDescriptor {
-        -int fd
-    }
+<<move-only>>
+-int fd
+-value() int
+}
 
-    DatagramSocket *-- FileDescriptor : owns
-    DatagramSocket ..> SocketAddress : sends to/from
-    SocketAddress *-- IpAddress : contains
-
-    classDef transport fill:#ddf4ff,stroke:#0969da,color:#24292f,stroke-width:2px
-    classDef value fill:#dafbe1,stroke:#1a7f37,color:#24292f,stroke-width:1.5px
-    classDef resource fill:#fff8c5,stroke:#9a6700,color:#24292f,stroke-width:1.5px
-
-    cssClass "DatagramSocket" transport
-    cssClass "SocketAddress,IpAddress" value
-    cssClass "FileDescriptor" resource
-```
-The layer is divided into small types with distinct responsibilities. `IpAddress` and `SocketAddress` represent networking values, `FileDescriptor` manages ownership of the native operating-system resource, and `DatagramSocket` combines these pieces to provide UDP operations.
-
-## Public Types
-
-| Type             | Responsibility                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FileDescriptor` | Owns the lifetime of a native file descriptor and closes it when ownership ends.                                                            |
-| `IpAddress`      | Represents either an IPv4 or IPv6 address and handles conversion between textual and native address representations.                        |
-| `SocketAddress`  | Combines an `IpAddress` with a port and owns conversion to and from POSIX socket-address structures.                                        |
-| `DatagramSocket` | Owns a UDP socket and provides the socket operations currently needed by the resolver, including binding, sending, and receiving datagrams. |
-
-## Ownership and Lifetime
-
-The socket layer uses RAII to tie the lifetime of an operating-system file descriptor to a C++ object.
-
-```text
-DatagramSocket
-      owns
-        |
-        v
-FileDescriptor
-      owns
-        |
-        v
-native file descriptor
+DatagramSocket *-- FileDescriptor : owns
+DatagramSocket ..> SocketAddress : uses
+SocketAddress *-- IpAddress : contains
 ```
 
-`FileDescriptor` is the resource-owning type in the subsystem. Copying it is prohibited because two independent objects must not both believe they own the same descriptor. Instead, ownership can be moved from one `FileDescriptor` to another. A move transfers the descriptor and leaves the source object in a non-owning state.
+## Design
 
-When the owning `FileDescriptor` is destroyed, it closes the descriptor if one is still held. This prevents callers from having to manually pair socket creation with `close()` and avoids leaking the resource when control leaves a scope.
+### Resource Ownership
 
-`DatagramSocket` contains a `FileDescriptor`, so it receives these ownership semantics through composition. It does not need to independently implement the lifetime rules for the underlying native socket.
+`FileDescriptor` is a move-only RAII wrapper that closes its native descriptor on destruction. Copying is disabled to prevent multiple objects from owning the same descriptor, while moving transfers ownership safely.
 
-## Address Representation
+`DatagramSocket` contains a `FileDescriptor`, separating resource ownership from networking operations. Callers don't need to manage native descriptors or call `close()` manually.
 
-The address model used by this socket layer is partly inspired by Java’s networking API, particularly the separation between InetAddress, InetSocketAddress, and DatagramSocket. This project adopts a similar division of responsibilities while adapting it to modern C++ through RAII, explicit ownership, move semantics, and direct POSIX interoperability.
+### Address Representation
 
-`IpAddress` represents either an IPv4 `in_addr` or IPv6 `in6_addr` while hiding that distinction from most callers. Textual addresses are parsed into this native representation, and addresses can later be converted back to their presentation form when needed.
+The address model is partly inspired by Java's `InetAddress`, `InetSocketAddress`, and `DatagramSocket`, adapted to C++ with RAII, move semantics, and POSIX interoperability.
 
-A network endpoint requires both an IP address and a port, which is represented by `SocketAddress`.
+`IpAddress` represents either an IPv4 or IPv6 address. It provides parsing from text and conversion back to string form, hiding the underlying `in_addr` and `in6_addr` representations.
 
-`SocketAddress` also forms the boundary between the project's address types and the POSIX socket API. POSIX socket calls operate on the `sockaddr` family of structures, while the rest of the project works with `SocketAddress`. Conversion to and from `sockaddr_storage` is therefore kept inside this type and is used internally by `DatagramSocket`.
+`SocketAddress` pairs an `IpAddress` with a port and handles conversion to and from native `sockaddr` structures. Ports are stored in host byte order and converted at the POSIX boundary using `htons()` and `ntohs()`.
 
-This prevents higher-level components from needing to understand the different layouts of `sockaddr_in` and `sockaddr_in6` or perform the required casts themselves.
+Both address types support equality comparisons. The resolver uses `SocketAddress` equality when verifying that a DNS response came from the expected upstream server.
 
-### Byte Order
+## DatagramSocket
 
-Ports stored by `SocketAddress` are represented in host byte order.
+`DatagramSocket` provides three operations:
 
-When an address is converted into a native socket structure, the port is converted to network byte order before being passed to POSIX. When an address received from the operating system is converted back into a `SocketAddress`, the port is converted back to host byte order.
+- `bind()` — associates a socket with a local address.
+- `send()` — sends a UDP datagram to a destination.
+- `recv()` — receives a datagram into a caller-provided buffer, with a timeout.
 
-Keeping this conversion at the representation boundary means callers can work with ordinary integer port values without repeatedly handling `htons()` and `ntohs()` themselves.
+Buffers are passed using `std::span`, avoiding additional buffer ownership within the socket layer.
 
-## Datagram Sockets
+### Receiving Datagrams
 
-`DatagramSocket` is the current socket interface exposed by the layer. It represents an IPv4 or IPv6 UDP socket and owns its native descriptor through `FileDescriptor`.
+`recv()` returns `std::optional<std::size_t>`. A successful receive returns the number of bytes written into the buffer; an expired timeout returns `std::nullopt`.
 
-Its interface provides the three basic operations currently needed by the resolver and other common networking libraries:
+The timeout is applied using `SO_RCVTIMEO` on each call, allowing the resolver to supply the remaining time before its deadline.
 
-- bind() associates the socket with a local SocketAddress.
-- send() transmits a sequence of bytes to a destination SocketAddress.
-- recv() receives a datagram into a caller-provided buffer and returns the sender’s SocketAddress.
+```mermaid
+sequenceDiagram
+    participant R as Resolver
+    participant S as DatagramSocket
+    participant OS as POSIX Sockets
 
-Each operation deals with a single UDP datagram. Unlike a stream socket, DatagramSocket does not establish a connection or expose the data as a continuous byte stream.
+    R->>S: recv(buffer, sender, timeout)
+    S->>OS: Set SO_RCVTIMEO
+    S->>OS: recvfrom()
 
-Send and receive buffers are represented with std::span. A span is a non-owning view of contiguous memory, so DatagramSocket can work with storage supplied by the caller without taking ownership of it or making an unnecessary copy.
+    alt Datagram received
+        OS-->>S: Bytes + source address
+        S-->>R: Byte count + SocketAddress
+    else Timeout
+        OS-->>S: Timeout
+        S-->>R: std::nullopt
+    end
+```
 
-When receiving a datagram, the returned byte count indicates how much of the buffer contains valid data. If recv() returns n, only the range [0, n) contains bytes from the received datagram. The rest of the buffer should be ignored. The operating system also provides the sender’s native socket address, which the socket layer converts into a SocketAddress before returning it to the caller.
+Other socket failures throw `std::system_error`, preserving the underlying OS error code. Unsupported address families passed to the constructor throw `std::invalid_argument`.
 
-With the current exception-based API, a successful return from recv() means that both the payload and sender address were received successfully. Errors from the underlying socket operations are reported through the layer’s error model rather than being encoded in the returned byte count.
+### Example
 
-Although these operations ultimately map to bind(), sendto(), and recvfrom(), callers do not interact with those system calls directly. Native descriptors, sockaddr structures, address conversions, and other platform-specific details remain contained within the socket layer.
-## Usage
-
-### Sending a datagram
+A simple UDP echo using the socket interface:
 
 ```cpp
 auto ip = IpAddress::parse("127.0.0.1");
@@ -128,64 +121,26 @@ if (!ip) {
     return 1;
 }
 
-SocketAddress destination{*ip, 9000};
-DatagramSocket socket{AF_INET};
-
-const std::array message{
-    std::byte{'h'}, std::byte{'e'}, std::byte{'l'},
-    std::byte{'l'}, std::byte{'o'}
-};
-
-socket.send(message, destination);
-```
-
-### Receiving and replying
-
-```cpp
-auto ip = IpAddress::parse("127.0.0.1");
-if (!ip) {
-    return 1;
-}
-
-SocketAddress local{*ip, 9000};
 DatagramSocket server{AF_INET};
-server.bind(local);
+server.bind(SocketAddress{*ip, 9000});
 
 std::array<std::byte, 1024> buffer{};
 std::optional<SocketAddress> sender;
 
-const auto bytes_received = server.recv(buffer, sender);
-const auto received = std::span<const std::byte>{
-    buffer.data(),
-    static_cast<std::size_t>(bytes_received)
-};
+using namespace std::chrono_literals;
 
-server.send(received, *sender);
+auto received = server.recv(buffer, sender, 5s);
+if (!received) {
+    return 1;
+}
+
+server.send(std::span{buffer}.first(*received), *sender);
 ```
 
-The important property of these examples is what they do not contain: raw file descriptors, `sockaddr` structures, `sendto()`, `recvfrom()`, casts between address structures, or explicit byte-order conversions. Those details terminate at the socket layer
-## Error Model
+The socket layer handles the native descriptors, address conversions, and system calls internally.
 
-The socket layer is also the boundary at which failures from the operating system become visible to C++ callers.
+## Scope
 
-Socket creation, binding, sending, and receiving can all fail for reasons reported by the underlying system. These failures are not silently ignored. The current implementation reports failures from socket operations using `std::system_error`, preserving the operating-system error information associated with the failed call.
+This layer supports UDP over IPv4 and IPv6 on POSIX systems. TCP sockets, Windows support, and asynchronous I/O are outside its current scope.
 
-Invalid socket families supplied when constructing a `DatagramSocket` are rejected separately as invalid arguments.
-
-Address parsing follows a different model: `IpAddress::parse()` returns an empty result when a string cannot be interpreted as either an IPv4 or IPv6 address.
-
-The exact error model may evolve as the resolver grows, but the important boundary remains the same: failures originating in the native networking API must remain observable to code above the socket layer.
-
-## Boundaries and Non-Goals
-
-This subsystem exists primarily to support `DnsResolver`; it is not intended to become a general-purpose networking framework.
-
-The current implementation is deliberately limited:
-
-* UDP datagram sockets are implemented; TCP sockets are not currently part of the layer.
-* Only IPv4 and IPv6 address families are supported.
-* The implementation directly targets POSIX/BSD sockets and does not currently provide a Windows backend.
-* Asynchronous I/O and coroutine integration are outside the current scope.
-* DNS message encoding, parsing, transaction handling, caching, and other protocol behavior belong above this layer.
-
-Keeping this boundary narrow allows the socket layer to provide the operating-system functionality required by the resolver without accumulating unrelated networking abstractions.
+It is designed around the needs of `DnsResolver`, rather than as a general-purpose networking library.
