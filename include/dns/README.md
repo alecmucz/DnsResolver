@@ -114,6 +114,10 @@ The header contains six 16-bit fields, including the flags packed into the secon
 
 `Message` stores each section in a separate vector, exposed through read-only `std::span` accessors. Flags are stored as a `uint16_t` and accessed using bitmasks through methods such as `qr()`, `rd()`, `tc()`, and `rcode()`.
 
+<img width="1440" height="863" alt="DNS response in Wireshark" src="https://github.com/user-attachments/assets/e6b178a5-c7fe-4c98-aa61-b4e56d88476f" />
+
+A response from 1.1.1.1 captured in Wireshark. Flags `0x8180` match the header layout above, and each answer starts with `c0 0c`, a compression pointer back to the name at offset 12.
+
 ## Implementation
 
 ### Wire Helpers
