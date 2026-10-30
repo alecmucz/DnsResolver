@@ -30,7 +30,10 @@ int main() {
 
     std::array<std::byte, 512> reply;
     std::optional<SocketAddress> sender;
-    std::println("received {} bytes", sock.recv(reply, sender));
+    using namespace std::chrono_literals;
+    auto m = sock.recv(reply, sender, 2s);
+    if (m) std::println("received {} bytes", *m);
+    else   std::println("timed out");
 
     return 0;
 }

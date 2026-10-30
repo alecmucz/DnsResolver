@@ -1,3 +1,4 @@
+#include <chrono>
 #include <socket/DatagramSocket.h>
 
 void DatagramSocket::bind(const SocketAddress &address) {
@@ -30,10 +31,20 @@ ssize_t DatagramSocket::send(std::span<const std::byte> data, const SocketAddres
     return bytes;
 }
 
-ssize_t DatagramSocket::recv(std::span<std::byte> buffer, std::optional<SocketAddress> &sender) const {
+std::optional<std::size_t> DatagramSocket::recv(std::span<std::byte> buffer, std::optional<SocketAddress> &sender, std::chrono::milliseconds timeout) const {
     sender.reset();
     sockaddr_storage storage{};
     socklen_t addr_len = sizeof(storage);
+
+    const auto secs = std::chrono::duration_cast<std::chrono::seconds>(timeout);
+    const auto usecs = std::chrono::duration_cast<std::chrono::microseconds>(timeout - secs);
+    timeval tv{};
+    tv.tv_sec  = static_cast<decltype(tv.tv_sec)>(secs.count());
+    tv.tv_usec = static_cast<decltype(tv.tv_usec)>(usecs.count());
+
+    if (::setsockopt(fd.value(), SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1) {
+        throw std::system_error(errno, std::generic_category(), "DatagramSocket::recv() setsockopt");
+    }
 
     const auto bytes = ::recvfrom(
         fd.value(),
@@ -45,10 +56,12 @@ ssize_t DatagramSocket::recv(std::span<std::byte> buffer, std::optional<SocketAd
 
     if (bytes >= 0) {
         sender = SocketAddress::from_sockaddr(storage);
+        return static_cast<std::size_t>(bytes);
+    } if (errno == EAGAIN || errno == EWOULDBLOCK) {
+        return std::nullopt;
     } else {
         throw std::system_error(errno, std::generic_category(), "DatagramSocket::recv()");
     }
-
 
     return bytes;
 }

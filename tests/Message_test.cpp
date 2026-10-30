@@ -86,8 +86,7 @@ TEST_CASE("DNS Message Parsing") {
     REQUIRE(m.answers().size() == 2);
     REQUIRE(m.authorities().size() == 0);
     REQUIRE(m.additionals().size() == 0);
-
-
+    
     const auto& a1 = m.answers()[0];
     const auto& a2 = m.answers()[1];
 
@@ -106,5 +105,4 @@ TEST_CASE("DNS Message Parsing") {
     REQUIRE_THROWS(dns::Message::parse(bytes.first(0)));    // empty
     REQUIRE_THROWS(dns::Message::parse(bytes.first(8)));    // short header
     REQUIRE_THROWS(dns::Message::parse(bytes.first(40)));   // inside answer 1
-
 }

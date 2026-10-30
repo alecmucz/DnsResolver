@@ -32,6 +32,20 @@ target_compile_options(dns
         PRIVATE
         -Wall -Wextra -Wpedantic -Wconversion)
 
+# RESOLVER LIBRARY
+add_library(resolver STATIC
+        src/resolver/resolver.cpp
+        src/resolver/resolver.cpp
+        include/resolver/resolver.h)
+target_include_directories(resolver
+        PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_link_libraries(resolver
+        PUBLIC
+        dns socket)
+target_compile_options(resolver
+        PRIVATE
+        -Wall -Wextra -Wpedantic -Wconversion)
 
 # TEST (CATCH2) DEPENDENCY
 include(FetchContent)
@@ -64,7 +78,7 @@ catch_discover_tests(DnsResolverTest)
 add_executable(DnsResolver main.cpp)
 target_link_libraries(DnsResolver
         PRIVATE
-        socket dns)
+        resolver)
 target_compile_options(
         DnsResolver
         PRIVATE
